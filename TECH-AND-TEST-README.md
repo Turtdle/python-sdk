@@ -113,6 +113,7 @@ pytest tests/test_230-notifications.py -v
 pytest tests/test_240-secrets_manager.py -v
 pytest tests/test_250-my_secrets.py -v
 pytest tests/test_260-notification_mediums.py -v
+pytest tests/test_270-approvals.py -v 
 
 pytest tests/test_990-delete_all_resources.py -v
 ~~~
