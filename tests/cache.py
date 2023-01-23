@@ -3,6 +3,7 @@ import pytest
 import os
 import string
 import random
+import time
 
 # don't worry about these invalid references - it will be fixed up if we are running local tests
 # vs running it through tox
@@ -466,14 +467,6 @@ def cached_static_secret_template(pytestconfig, cached_PasswordPolicies):
 
 
 @pytest.fixture(scope='session')
-@cached_resource(name='policy')
-def cached_policy(pytestconfig, cached_user):
-    r = str(random.randint(0, 1000000))
-    policy = britive.secrets_manager.policies.build(f"pytestpolicy-{r}", draft=True, active=False)
-    return britive.secrets_manager.policies.create(policy=policy)
-
-
-@pytest.fixture(scope='session')
 @cached_resource(name='notification-medium')
 def cached_notification_medium(pytestconfig):
     r = str(random.randint(0, 1000000))
@@ -483,14 +476,42 @@ def cached_notification_medium(pytestconfig):
         connection_parameters={"Webhook URL" : "https://www.google.com/"}
     )
 
+@pytest.fixture(scope='session')
+@cached_resource(name='approval_checkout_service_identity')
+def cached_approval_checkout_service_identity(pytestconfig):
+    checkout_SI = britive.service_identities.create(
+        name = "Approvals_Test_Checkout"  + str(random.randint(0,10000))
+    )
 
+    return britive.service_identity_tokens.create(checkout_SI['userId'])
 
-
-
-
-
-
-
-
-
-
+@pytest.fixture(scope='session')
+@cached_resource(name='cached_approval')
+def cached_approval(pytestconfig, cached_notification_medium, cached_profile, cached_environment, cached_tag, cached_approval_checkout_service_identity):
+    calling_user_details2 = britive.my_access.whoami()
+    policy = britive.profiles.policies.build(
+        name=cached_profile['papId'] + str(random.randint(0,10000)),
+        service_identities=[cached_approval_checkout_service_identity['name']],
+        description=cached_tag['name'],
+        approver_users=[calling_user_details2['userId']],
+        approval_notification_medium=cached_notification_medium['id']
+    )
+    print("-----> " + str(policy))
+    britive.profiles.policies.create(
+        profile_id=cached_profile['papId'],
+        policy=policy
+    )
+    permissions = britive.profiles.permissions.list_available(profile_id=cached_profile['papId'])
+    if len(permissions) > 0:
+        britive.profiles.permissions.add(
+            profile_id=cached_profile['papId'],
+            permission_type=permissions[0]['type'],
+            permission_name=permissions[0]['name']
+        )
+    britive_requester = Britive(token=cached_approval_checkout_service_identity['token'])
+    response = britive_requester.my_access.request_approval(
+        profile_id=cached_profile['papId'],
+        environment_id=cached_environment['id'],
+        justification='approvals test'
+    )
+    return britive.approvals.get(response['requestId'])

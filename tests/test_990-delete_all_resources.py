@@ -182,4 +182,9 @@ def test_notification_medium_delete(cached_notification_medium):
         assert response is None
     finally:
         cleanup('notification-medium')
-        
+
+def test_approvals_delete(cached_approval_checkout_service_identity):
+    try:
+        britive.service_identities.delete(cached_approval_checkout_service_identity['assignedTo'])
+    finally:
+        cleanup('approval')

@@ -52,7 +52,8 @@ class Approvals():
 
         params = {
             'requestType' : 'myApprovals',
-            'filter' : filter
+            'filter' : filter,
+            'consumer': 'papservice',
         }
-        
+
         return self.britive.get(self.base_url, params=params)
