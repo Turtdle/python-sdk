@@ -496,18 +496,10 @@ def cached_approval(pytestconfig, cached_notification_medium, cached_profile, ca
         approver_users=[calling_user_details2['userId']],
         approval_notification_medium=cached_notification_medium['id']
     )
-    print("-----> " + str(policy))
     britive.profiles.policies.create(
         profile_id=cached_profile['papId'],
         policy=policy
     )
-    permissions = britive.profiles.permissions.list_available(profile_id=cached_profile['papId'])
-    if len(permissions) > 0:
-        britive.profiles.permissions.add(
-            profile_id=cached_profile['papId'],
-            permission_type=permissions[0]['type'],
-            permission_name=permissions[0]['name']
-        )
     britive_requester = Britive(token=cached_approval_checkout_service_identity['token'])
     response = britive_requester.my_access.request_approval(
         profile_id=cached_profile['papId'],
