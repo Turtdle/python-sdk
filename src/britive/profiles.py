@@ -152,6 +152,16 @@ class Profiles:
 
         return self.britive.get(f'{self.britive.base_url}/paps/{profile_id}/resources', params=params)
 
+    def get_scopes(self, profile_id: str) -> list:
+        """
+        Get the scopes associated with the specified profile.
+
+        :param profile_id: The ID of the profile for which scopes will be updated.
+        :return: List of scopes and associated details.
+        """
+
+        return self.britive.get(f'{self.britive.base_url}/paps/{profile_id}/scopes')
+
     def set_scopes(self, profile_id: str, scopes: list) -> list:
         """
         Update the scopes associated with the specified profile.
@@ -168,6 +178,34 @@ class Profiles:
         """
 
         return self.britive.post(f'{self.britive.base_url}/paps/{profile_id}/scopes', json=scopes)
+
+    def add_single_environment_scope(self, profile_id: str, environment_id: str) -> None:
+        """
+        Add a single environment to the scopes associated with the specified profile.
+
+        This API call is useful when there are a large number of environments (500+) as the
+        `set_scopes()` call may time out.
+
+        :param profile_id: The ID of the profile.
+        :param environment_id: The ID of the environment which will be added to the profile scopes.
+        :return: None
+        """
+
+        return self.britive.patch(f'{self.britive.base_url}/paps/{profile_id}/scopes/{environment_id}')
+
+    def remove_single_environment_scope(self, profile_id: str, environment_id: str) -> None:
+        """
+        Remove a single environment from the scopes associated with the specified profile.
+
+        This API call is useful when there are a large number of environments (500+) as the
+        `set_scopes()` call may time out.
+
+        :param profile_id: The ID of the profile.
+        :param environment_id: The ID of the environment which will be removed from the profile scopes.
+        :return: None
+        """
+
+        return self.britive.delete(f'{self.britive.base_url}/paps/{profile_id}/scopes/{environment_id}')
 
     def enable(self, application_id: str, profile_id: str) -> dict:
         """
@@ -601,7 +639,8 @@ class ProfilePolicies:
               read_only: bool = False, users: list = None, tags: list = None,
               service_identities: list = None, ips: list = None, from_time: str = None,
               to_time: str = None, approval_notification_medium: str = None, time_to_approve: int = 5,
-              approver_users: list = None, approver_tags: list = None, access_type: str = 'Allow') -> dict:
+              access_validity_time: int = 120, approver_users: list = None, approver_tags: list = None,
+              access_type: str = 'Allow') -> dict:
         """
         Build a policy document that can be applied to a profile.
 
@@ -625,9 +664,14 @@ class ProfilePolicies:
             provided then `from_time` must also be provided.
         :param approval_notification_medium: Optional notification medium name to which approval requests will be
             delivered. Specifying this parameter indicates the desire to enable approvals for this policy.
-        :param time_to_approve: Optional number of minutes to wait for an approval before denying the action.
+        :param time_to_approve: Optional number of minutes to wait for an approval before denying the action. Defaults
+            to 5 minutes.
+        :param access_validity_time: Optional number of minutes the access is valid after approval. Defaults to 120
+            minutes.
         :param approver_users: Optional list of user names who are to be considered approvers.
-        :param approver_tags: Option list of tag names who are considered approvers.
+            If `approval_notification_medium` is set then either `approver_users` or `approver_tags` is required.
+        :param approver_tags: Optional list of tag names who are considered approvers.
+            If `approval_notification_medium` is set then either `approver_users` or `approver_tags` is required.
         :param access_type: The type of access this policy provides. Valid values are `Allow` and `Deny`. Defaults
             to `Allow`.
         :return: A dict which can be provided as a profile policy to `create` and `update`.
@@ -647,6 +691,7 @@ class ProfilePolicies:
             to_time=to_time,
             approval_notification_medium=approval_notification_medium,
             time_to_approve=time_to_approve,
+            access_validity_time=access_validity_time,
             approver_users=approver_users,
             approver_tags=approver_tags,
             access_type=access_type
@@ -656,12 +701,6 @@ class ProfilePolicies:
         policy.pop('permissions', None)
         policy.pop('roles', None)
         policy['consumer'] = 'papservice'
-
-        if 'condition' in policy.keys():
-            condition = json.loads(policy['condition'])
-            if 'approval' in condition.keys():
-                condition['approval'].pop('validFor', None)
-            policy['condition'] = json.dumps(condition, default=str)
 
         return policy
 
@@ -719,7 +758,7 @@ class ProfilePolicies:
         :return: Details of the updated policy.
         """
 
-        return self.britive.put(f'{self.base_url}/{profile_id}/policies/{policy_id}', data=policy)
+        return self.britive.patch(f'{self.base_url}/{profile_id}/policies/{policy_id}', json=policy)
 
     def delete(self, profile_id: str, policy_id: str) -> None:
         """

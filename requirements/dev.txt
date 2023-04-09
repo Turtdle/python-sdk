@@ -1,4 +1,6 @@
 -r common.txt
-pytest ~= 3.0.3
-tox ~= 3.24.5
-
+pytest
+tox~=3.24.5
+twine~=4.0.1
+boto3
+azure-identity
