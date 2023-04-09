@@ -31,11 +31,16 @@ from .identity_providers import IdentityProviders
 from .my_access import MyAccess
 from .notifications import Notifications
 from .my_secrets import MySecrets
-from .policies import  Policies
+from .policies import Policies
 from .secrets_manager import SecretsManager
 from .notification_mediums import NotificationMediums
+<<<<<<< HEAD
 from .approvals import Approvals
 
+=======
+from .workload import Workload
+from .system.system import System
+>>>>>>> eb7716179287e6e10515439a1be225d760430017
 
 BRITIVE_TENANT_ENV_NAME = 'BRITIVE_TENANT'
 BRITIVE_TOKEN_ENV_NAME = 'BRITIVE_API_TOKEN'
@@ -126,6 +131,17 @@ class Britive:
         retries = Retry(total=5, backoff_factor=1, status_forcelist=[429, 500, 502, 503, 504])
         self.session.mount('https://', HTTPAdapter(max_retries=retries))
 
+        # allow the disabling of TLS/SSL verification for testing in development (mostly local development)
+        if os.getenv('BRITIVE_NO_VERIFY_SSL') and '.dev.' in self.tenant:
+            # turn off ssl verification
+            self.session.verify = False
+            # wipe these due to this bug: https://github.com/psf/requests/issues/3829
+            os.environ['CURL_CA_BUNDLE'] = ""
+            os.environ['REQUESTS_CA_BUNDLE'] = ""
+            # disable the warning message
+            import urllib3
+            urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
+
         token_type = 'TOKEN' if len(self.__token) < 50 else 'Bearer'
         if len(self.__token.split('::')) > 1:
             token_type = 'WorkloadToken'
@@ -170,7 +186,12 @@ class Britive:
         self.policies = Policies(self)
         self.secrets_manager = SecretsManager(self)
         self.notification_mediums = NotificationMediums(self)
+<<<<<<< HEAD
         self.approvals = Approvals(self)
+=======
+        self.workload = Workload(self)
+        self.system = System(self)
+>>>>>>> eb7716179287e6e10515439a1be225d760430017
 
     @staticmethod
     def source_federation_token_from(provider: str, tenant: str = None, duration_seconds: int = 900) -> str:
@@ -186,15 +207,19 @@ class Britive:
         sourced outside of this SDK and provided as input via the standard token presentation
         options.
 
-        Two federation providers are currently supported by this method.
+        Five federation providers are currently supported by this method.
 
-        * AWS IAM (with optional profile specified) - standard boto3 credential selection process will be used
-        * Github Actions
+        * AWS IAM/STS, with optional profile specified - (aws)
+        * Github Actions (github)
+        * Bitbucket Pipelines (bitbucket)
+        * Azure System Assigned Managed Identities (azuresmi)
+        * Azure User Assigned Managed Identities (azureumi)
 
         Any other OIDC federation provider can be used and tokens can be provided to this class for authentication
         to a Britive tenant. Details of how to construct these tokens can be found at https://docs.britive.com.
 
-        :param provider: The name of the federation provider. Valid options are `aws` and `github`.
+        :param provider: The name of the federation provider. Valid options are `aws`, `github`, `bitbucket`,
+            `azuresmi`, and `azureumi`.
 
             For the AWS provider it is possible to provide a profile via value `aws-profile`. If no profile is provided
             then the boto3 `Session.get_credentials()` method will be used to obtain AWS credentials, which follows
@@ -203,6 +228,16 @@ class Britive:
 
             For the Github provider it is possible to provide an OIDC audience value via `github-<audience>`. If no
             audience is provided the default Github audience value will be used.
+
+            For Azure User Assigned Managed Identities (azureumi) a client id is required. It must be
+            provided in the form `azureumi-<client-id>`. From the Azure documentation...a user-assigned identity's
+            client ID or, when using Pod Identity, the client ID of an Azure AD app registration. This argument
+            is supported in all hosting environments.
+
+            For both Azure Managed Identity options it is possible to provide an OIDC audience value via
+            `azuresmi-<audience>` and `azureumi-<client-id>|<audience>`. If no audience is provided the default audience
+             of `https://management.azure.com/` will be used.
+
         :param tenant: The name of the tenant. This field is optional but if not provided then the tenant will be
             sourced from environment variable BRITIVE_TENANT. Knowing the actual tenant is required for the AWS
             federation provider. This field can be ignored for non AWS federation providers.
@@ -225,6 +260,25 @@ class Britive:
         if provider == 'github':
             audience = helper_methods.safe_list_get(helper, 1, None)
             return fp.GithubFederationProvider(audience=audience).get_token()
+
+        if provider == 'bitbucket':
+            return fp.BitbucketFederationProvider().get_token()
+
+        if provider == 'azuresmi':
+            audience = helper_methods.safe_list_get(helper, 1, None)
+            return fp.AzureSystemAssignedManagedIdentityFederationProvider(audience=audience).get_token()
+
+        if provider == 'azureumi':
+            additional_attributes_str = helper_methods.safe_list_get(helper, 1, None)
+            if not additional_attributes_str:
+                raise ValueError('client id is required via azurumi-<client-id>')
+            additional_attributes = additional_attributes_str.split('|')
+            client_id = additional_attributes[0]
+            audience = helper_methods.safe_list_get(additional_attributes, 1, None)
+            return fp.AzureUserAssignedManagedIdentityFederationProvider(
+                client_id=client_id,
+                audience=audience
+            ).get_token()
 
         raise InvalidFederationProvider(f'federation provider {provider} not supported')
 
@@ -366,7 +420,7 @@ class Britive:
             # load the result as a dict
             try:
                 result = response.json()
-            except native_json.decoder.JSONDecodeError:  # if we cannot decode json then the response isn't json
+            except ValueError:  # includes simplejson.decoder.JSONDecodeError and native_json.decoder.JSONDecodeError
                 return response.content.decode('utf-8')
 
             # check on the pagination and iterate if required - we only need to check on this after the first

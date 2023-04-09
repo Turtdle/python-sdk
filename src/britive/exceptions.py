@@ -27,6 +27,10 @@ class ForbiddenRequest(Exception):
     pass
 
 
+class NotFound(Exception):
+    pass
+
+
 class MethodNotAllowed(Exception):
     pass
 
@@ -75,6 +79,10 @@ class ApprovalWorkflowTimedOut(Exception):
     pass
 
 
+class ApprovalWorkflowRejected(Exception):
+    pass
+
+
 class AccessDenied(Exception):
     pass
 
@@ -108,6 +116,18 @@ class NoSecretsVaultFound(Exception):
 
 
 class InvalidFederationProvider(Exception):
+    pass
+
+
+class NotExecutingInGithubEnvironment(Exception):
+    pass
+
+
+class NotExecutingInBitbucketEnvironment(Exception):
+    pass
+
+
+class NotExecutingInAzureEnvironment(Exception):
     pass
 
 
